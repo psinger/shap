@@ -1,4 +1,5 @@
 import numpy as np
+import scipy as sp
 import multiprocessing
 import sys
 from .explainer import Explainer
@@ -111,12 +112,33 @@ class TreeExplainer(Explainer):
         else:
             raise Exception("Model type not yet supported by TreeExplainer: " + str(type(model)))
 
+    def shap_values_batch(self, X, batch_size=10000, tree_limit=-1, **kwargs):
+        """ Estimate the SHAP values for a set of samples with batches.
+
+        Parameters
+        ----------
+        X : numpy.array, scipy.sparse.csr_matrix, or pandas.DataFrame
+            A matrix of samples (# samples x # features) on which to explain the model's output.
+
+        Returns
+        -------
+        Sparse shap values.
+        """
+
+        idx = [x for x in range(0, X.shape[0], batch_size)] + [X.shape[0]]
+        shap_values_arrays = []
+        for i in range(len(idx) - 1):
+            shap_values = self.shap_values(X[idx[i]:idx[i+1]], tree_limit=tree_limit)
+            shap_values_arrays.append(sp.sparse.csr_matrix(shap_values))
+        shap_values = sp.sparse.vstack(shap_values_arrays)
+        return shap_values
+
     def shap_values(self, X, tree_limit=-1, **kwargs):
         """ Estimate the SHAP values for a set of samples.
 
         Parameters
         ----------
-        X : numpy.array or pandas.DataFrame
+        X : numpy.array, scipy.sparse.csr_matrix, or pandas.DataFrame
             A matrix of samples (# samples x # features) on which to explain the model's output.
 
         Returns

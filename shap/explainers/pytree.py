@@ -42,8 +42,8 @@ class TreeExplainer(Explainer):
             if not str(type(X)).endswith("xgboost.core.DMatrix'>"):
                 X = xgboost.DMatrix(X)
             if tree_limit==-1:
-		tree_limit=0
-            return self.trees.predict(X, ntree_limit=tree_limit, pred_contribs=True)
+                tree_limit=0
+                return self.trees.predict(X, ntree_limit=tree_limit, pred_contribs=True)
         elif self.model_type == "lightgbm":
             return self.trees.predict(X, num_iteration=tree_limit, pred_contrib=True)
 

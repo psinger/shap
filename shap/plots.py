@@ -5,6 +5,7 @@ import warnings
 
 import iml
 import numpy as np
+import scipy as sp
 from iml import Instance, Model
 from iml.datatypes import DenseData
 from iml.explanations import AdditiveExplanation
@@ -313,6 +314,8 @@ def summary_plot(shap_values, features=None, feature_names=None, max_display=Non
                  color_bar=True, auto_size_plot=True, layered_violin_max_num_bins=20, class_names=None):
     """Create a SHAP summary plot, colored by feature values when they are provided.
 
+    Sparse shap values currentl only work for non multiclass and bar and dot plots
+
     Parameters
     ----------
     shap_values : numpy.array
@@ -330,6 +333,15 @@ def summary_plot(shap_values, features=None, feature_names=None, max_display=Non
     plot_type : "dot" (default) or "violin"
         What type of summary plot to produce
     """
+
+    shap_values_issparse = False
+    if sp.sparse.issparse(shap_values):
+        shap_values_issparse = True
+
+    features_issparse = False
+    if features is not None:
+        if sp.sparse.issparse(features):
+            features_issparse = True
 
     multi_class = False
     if isinstance(shap_values, list):
@@ -427,6 +439,8 @@ def summary_plot(shap_values, features=None, feature_names=None, max_display=Non
             feature_order = np.argsort(np.sum(np.mean(np.abs(shap_values), axis=0), axis=0))
         else:
             feature_order = np.argsort(np.sum(np.abs(shap_values), axis=0))
+            if shap_values_issparse:
+                feature_order = feature_order.A.reshape(-1)
         feature_order = feature_order[-min(max_display, len(feature_order)):]
     else:
         feature_order = np.flip(np.arange(min(max_display, num_features)), 0)
@@ -440,8 +454,12 @@ def summary_plot(shap_values, features=None, feature_names=None, max_display=Non
         for pos, i in enumerate(feature_order):
             pl.axhline(y=pos, color="#cccccc", lw=0.5, dashes=(1, 5), zorder=-1)
             shaps = shap_values[:, i]
+            if shap_values_issparse:
+                shaps = shaps.A.reshape(-1)
             values = None if features is None else features[:, i]
-            inds = np.arange(len(shaps))
+            if features_issparse:
+                values = values.A.reshape(-1)
+            inds = np.arange(shaps.shape[0])
             np.random.shuffle(inds)
             if values is not None:
                 values = values[inds]
@@ -451,7 +469,7 @@ def summary_plot(shap_values, features=None, feature_names=None, max_display=Non
                 values = np.array(values, dtype=np.float64)  # make sure this can be numeric
             except:
                 colored_feature = False
-            N = len(shaps)
+            N = shaps.shape[0]
             # hspacing = (np.max(shaps) - np.min(shaps)) / 200
             # curr_bin = []
             nbins = 100
@@ -479,15 +497,15 @@ def summary_plot(shap_values, features=None, feature_names=None, max_display=Non
                         vmin = np.min(values)
                         vmax = np.max(values)
 
-                assert features.shape[0] == len(shaps), "Feature and SHAP matrices must have the same number of rows!"
+                assert features.shape[0] == shaps.shape[0], "Feature and SHAP matrices must have the same number of rows!"
                 nan_mask = np.isnan(values)
                 pl.scatter(shaps[nan_mask], pos + ys[nan_mask], color="#777777", vmin=vmin,
                            vmax=vmax, s=16, alpha=alpha, linewidth=0,
-                           zorder=3, rasterized=len(shaps) > 500)
+                           zorder=3, rasterized=shaps.shape[0] > 500)
                 pl.scatter(shaps[np.invert(nan_mask)], pos + ys[np.invert(nan_mask)],
                            cmap=red_blue, vmin=vmin, vmax=vmax, s=16,
                            c=values[np.invert(nan_mask)], alpha=alpha, linewidth=0,
-                           zorder=3, rasterized=len(shaps) > 500)
+                           zorder=3, rasterized=shaps.shape[0] > 500)
             else:
 
                 pl.scatter(shaps, pos + ys, s=16, alpha=alpha, linewidth=0, zorder=3,
@@ -630,6 +648,8 @@ def summary_plot(shap_values, features=None, feature_names=None, max_display=Non
         feature_inds = feature_order[:max_display]
         y_pos = np.arange(len(feature_inds))
         global_shap_values = np.abs(shap_values).mean(0)
+        if shap_values_issparse:
+            global_shap_values = global_shap_values.A.reshape(-1)
         pl.barh(y_pos, global_shap_values[feature_inds], 0.7, align='center', color=color)
         pl.yticks(y_pos, fontsize=13)
         pl.gca().set_yticklabels([feature_names[i] for i in feature_inds])
